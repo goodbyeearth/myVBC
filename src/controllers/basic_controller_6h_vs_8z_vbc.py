@@ -33,16 +33,19 @@ class BasicMAC_6h_vs_8z:
         self.delta2 = self.args.delta2        
         self.hidden_states = None
 
+        self.batch_size_run = self.args.batch_size_run
+
     def select_actions(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):
         
         avail_actions = ep_batch["avail_actions"][:, t_ep]
         agent_local_outputs, hidden_states = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        dummy0 = self.env_blender(hidden_states[:,0,:].view(8,-1)) 
-        dummy1 = self.env_blender(hidden_states[:,1,:].view(8,-1)) 
-        dummy2 = self.env_blender(hidden_states[:,2,:].view(8,-1)) 
-        dummy3 = self.env_blender(hidden_states[:,3,:].view(8,-1)) 
-        dummy4 = self.env_blender(hidden_states[:,4,:].view(8,-1))
-        dummy5 = self.env_blender(hidden_states[:,5,:].view(8,-1)) 
+
+        dummy0 = self.env_blender(hidden_states[:,0,:].view(self.batch_size_run,-1))
+        dummy1 = self.env_blender(hidden_states[:,1,:].view(self.batch_size_run,-1))
+        dummy2 = self.env_blender(hidden_states[:,2,:].view(self.batch_size_run,-1))
+        dummy3 = self.env_blender(hidden_states[:,3,:].view(self.batch_size_run,-1))
+        dummy4 = self.env_blender(hidden_states[:,4,:].view(self.batch_size_run,-1))
+        dummy5 = self.env_blender(hidden_states[:,5,:].view(self.batch_size_run,-1))
         
         agent0 = (dummy1 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
         agent1 = (dummy0 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
@@ -51,7 +54,8 @@ class BasicMAC_6h_vs_8z:
         agent4 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy5)/5.0
         agent5 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy4)/5.0
         
-        agent_global_outputs =th.cat((agent0.view((8,1,14)),agent1.view((8,1,14)),agent2.view((8,1,14)),agent3.view((8,1,14)),agent4.view((8,1,14)),agent5.view((8,1,14))),1)
+        agent_global_outputs =th.cat((agent0.view((self.batch_size_run,1,14)),agent1.view((self.batch_size_run,1,14)),agent2.view((self.batch_size_run,1,14)),
+                                      agent3.view((self.batch_size_run,1,14)),agent4.view((self.batch_size_run,1,14)),agent5.view((self.batch_size_run,1,14))),1)
         # generate the action-value function of each agent
         agent_outputs = agent_local_outputs + agent_global_outputs
         
@@ -62,12 +66,12 @@ class BasicMAC_6h_vs_8z:
     def select_actions_comm_proto(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):
         avail_actions = ep_batch["avail_actions"][:, t_ep]
         agent_local_outputs, hidden_states = self.forward(ep_batch, t_ep, test_mode=test_mode)
-        dummy0 = self.env_blender(hidden_states[:,0,:].view(8,-1)) 
-        dummy1 = self.env_blender(hidden_states[:,1,:].view(8,-1)) 
-        dummy2 = self.env_blender(hidden_states[:,2,:].view(8,-1)) 
-        dummy3 = self.env_blender(hidden_states[:,3,:].view(8,-1)) 
-        dummy4 = self.env_blender(hidden_states[:,4,:].view(8,-1))
-        dummy5 = self.env_blender(hidden_states[:,5,:].view(8,-1)) 
+        dummy0 = self.env_blender(hidden_states[:,0,:].view(self.batch_size_run,-1))
+        dummy1 = self.env_blender(hidden_states[:,1,:].view(self.batch_size_run,-1))
+        dummy2 = self.env_blender(hidden_states[:,2,:].view(self.batch_size_run,-1))
+        dummy3 = self.env_blender(hidden_states[:,3,:].view(self.batch_size_run,-1))
+        dummy4 = self.env_blender(hidden_states[:,4,:].view(self.batch_size_run,-1))
+        dummy5 = self.env_blender(hidden_states[:,5,:].view(self.batch_size_run,-1))
             
         agent0 = (dummy1 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
         agent1 = (dummy0 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
@@ -78,8 +82,8 @@ class BasicMAC_6h_vs_8z:
 
         # elminate the communication based on the delta2
             
-        num_eliminated_we = th.ones((8,6))
-        for i in range(0,8):
+        num_eliminated_we = th.ones((self.batch_size_run,6))
+        for i in range(0,self.batch_size_run):
             if(th.std(dummy0[i,:], dim=0)<self.delta2):
                 dummy0[i:,] = th.zeros(1,14)
                 num_eliminated_we[i,0] = 0
@@ -106,13 +110,15 @@ class BasicMAC_6h_vs_8z:
         agent4 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy5)/5.0
         agent5 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy4)/5.0
         
-        agent_global_outputs =th.cat((agent0.view((8,1,14)),agent1.view((8,1,14)),agent2.view((8,1,14)),agent3.view((8,1,14)),agent4.view((8,1,14)),agent5.view((8,1,14))),1)
+        agent_global_outputs =th.cat((agent0.view((self.batch_size_run,1,14)),agent1.view((self.batch_size_run,1,14)),
+                                      agent2.view((self.batch_size_run,1,14)),agent3.view((self.batch_size_run,1,14)),
+                                      agent4.view((self.batch_size_run,1,14)),agent5.view((self.batch_size_run,1,14))),1)
         largest = th.topk(agent_local_outputs,2, dim = 2)
         criteria = th.abs(largest[0][:,:,0]-largest[0][:,:,1])
         binary_matrix = th.stack([(criteria > self.delta1).type(th.cuda.FloatTensor)]*14,-1)   #duplicate along the third dimension
-        comm_rate_local = ((criteria < self.delta1).type(th.cuda.FloatTensor)).sum()/(6*8) 
-        comm_rate_among = (num_eliminated_we.cuda()).sum()/(6*8) 
-        comm_rate = (num_eliminated.cuda()*(criteria < self.delta1).type(th.cuda.FloatTensor)).sum()/(6*5*8) 
+        comm_rate_local = ((criteria < self.delta1).type(th.cuda.FloatTensor)).sum()/(6*self.batch_size_run)
+        comm_rate_among = (num_eliminated_we.cuda()).sum()/(6*self.batch_size_run)
+        comm_rate = (num_eliminated.cuda()*(criteria < self.delta1).type(th.cuda.FloatTensor)).sum()/(6*5*self.batch_size_run)
 
         # generate the action-value function of each agent
         agent_outputs = agent_local_outputs * binary_matrix + (agent_local_outputs + agent_global_outputs) * (1-binary_matrix)

@@ -34,6 +34,8 @@ class QLearner_6h_vs_8z:
 
         self.log_stats_t = -self.args.learner_log_interval - 1
 
+        self.batch_size = self.args.batch_size
+
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
         # Get the relevant quantities
         rewards = batch["reward"][:, :-1]
@@ -50,12 +52,12 @@ class QLearner_6h_vs_8z:
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
             agent_local_outputs, hidden_states = self.mac.forward(batch, t=t)  
-            dummy0 = self.mac.env_blender(hidden_states[:,0,:].view(32,-1)) 
-            dummy1 = self.mac.env_blender(hidden_states[:,1,:].view(32,-1)) 
-            dummy2 = self.mac.env_blender(hidden_states[:,2,:].view(32,-1)) 
-            dummy3 = self.mac.env_blender(hidden_states[:,3,:].view(32,-1)) 
-            dummy4 = self.mac.env_blender(hidden_states[:,4,:].view(32,-1))
-            dummy5 = self.mac.env_blender(hidden_states[:,5,:].view(32,-1)) 
+            dummy0 = self.mac.env_blender(hidden_states[:,0,:].view(self.batch_size,-1))
+            dummy1 = self.mac.env_blender(hidden_states[:,1,:].view(self.batch_size,-1))
+            dummy2 = self.mac.env_blender(hidden_states[:,2,:].view(self.batch_size,-1))
+            dummy3 = self.mac.env_blender(hidden_states[:,3,:].view(self.batch_size,-1))
+            dummy4 = self.mac.env_blender(hidden_states[:,4,:].view(self.batch_size,-1))
+            dummy5 = self.mac.env_blender(hidden_states[:,5,:].view(self.batch_size,-1))
             
             agent0 = (dummy1 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
             agent1 = (dummy0 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
@@ -63,7 +65,9 @@ class QLearner_6h_vs_8z:
             agent3 = (dummy0 + dummy1 + dummy2 + dummy4 + dummy5)/5.0
             agent4 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy5)/5.0
             agent5 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy4)/5.0
-            agent_global_outputs =th.cat((agent0.view((32,1,14)),agent1.view((32,1,14)),agent2.view((32,1,14)),agent3.view((32,1,14)),agent4.view((32,1,14)),agent5.view((32,1,14))),1)            
+            agent_global_outputs =th.cat((agent0.view((self.batch_size,1,14)),agent1.view((self.batch_size,1,14)),
+                                          agent2.view((self.batch_size,1,14)),agent3.view((self.batch_size,1,14)),
+                                          agent4.view((self.batch_size,1,14)),agent5.view((self.batch_size,1,14))),1)
             agent_outs = agent_local_outputs + agent_global_outputs
             difference = agent_global_outputs 
             mac_out.append(agent_outs)
@@ -82,12 +86,12 @@ class QLearner_6h_vs_8z:
         for t in range(batch.max_seq_length):
             target_agent_local_outputs, target_hidden_states = self.target_mac.forward(batch, t=t)
     
-            dummy0 = self.target_mac.env_blender(target_hidden_states[:,0,:].view(32,-1)) 
-            dummy1 = self.target_mac.env_blender(target_hidden_states[:,1,:].view(32,-1)) 
-            dummy2 = self.target_mac.env_blender(target_hidden_states[:,2,:].view(32,-1)) 
-            dummy3 = self.target_mac.env_blender(target_hidden_states[:,3,:].view(32,-1)) 
-            dummy4 = self.target_mac.env_blender(target_hidden_states[:,4,:].view(32,-1))
-            dummy5 = self.target_mac.env_blender(target_hidden_states[:,5,:].view(32,-1)) 
+            dummy0 = self.target_mac.env_blender(target_hidden_states[:,0,:].view(self.batch_size,-1))
+            dummy1 = self.target_mac.env_blender(target_hidden_states[:,1,:].view(self.batch_size,-1))
+            dummy2 = self.target_mac.env_blender(target_hidden_states[:,2,:].view(self.batch_size,-1))
+            dummy3 = self.target_mac.env_blender(target_hidden_states[:,3,:].view(self.batch_size,-1))
+            dummy4 = self.target_mac.env_blender(target_hidden_states[:,4,:].view(self.batch_size,-1))
+            dummy5 = self.target_mac.env_blender(target_hidden_states[:,5,:].view(self.batch_size,-1))
             
             target_agent0 = (dummy1 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
             target_agent1 = (dummy0 + dummy2 + dummy3 + dummy4 + dummy5)/5.0
@@ -96,7 +100,9 @@ class QLearner_6h_vs_8z:
             target_agent4 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy5)/5.0
             target_agent5 = (dummy0 + dummy1 + dummy2 + dummy3 + dummy4)/5.0  
             
-            target_agent_global_outputs = th.cat((target_agent0.view((32,1,14)),target_agent1.view((32,1,14)),target_agent2.view((32,1,14)),target_agent3.view((32,1,14)),target_agent4.view((32,1,14)),target_agent5.view((32,1,14))),1)
+            target_agent_global_outputs = th.cat((target_agent0.view((self.batch_size,1,14)),target_agent1.view((self.batch_size,1,14)),
+                                                  target_agent2.view((self.batch_size,1,14)),target_agent3.view((self.batch_size,1,14)),
+                                                  target_agent4.view((self.batch_size,1,14)),target_agent5.view((self.batch_size,1,14))),1)
             target_agent_outs = target_agent_local_outputs + target_agent_global_outputs
             target_mac_out.append(target_agent_outs)
           

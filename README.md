@@ -25,3 +25,8 @@ python3 src/main.py --config=xxx_xxx --env-config=sc2 with env_args.map_name=xxx
 3. The test accuracy will be saved in the 'xxx_accuracy_list.txt', where xxx is the local_results_path parameter in default.yaml.
 
 4. Communication overhead \beta will be saved in the 'xxx_comm_overhead.txt', where xxx is the local_results_path parameter in default.yaml.
+
+
+
+### My VBC
+python src/main.py --config=qmix_6h_vs_8z --env-config=sc2 with env_args.map_name=6h_vs_8z
